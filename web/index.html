@@ -49,6 +49,10 @@
 
   <main class="layout">
     <section class="col left">
+      <!-- Shown only in the right-sidebar window (`?panes=list`), which has no
+           diff column: it says where diffs live rather than failing silently. -->
+      <div id="list-only-note" class="hint list-only-note" hidden>此窗口只显示列表；需要看 diff 请用左侧栏的 Git 面板。</div>
+
       <div class="tabs">
         <button class="tab active" data-tab="history">提交历史</button>
         <button class="tab" data-tab="changes">工作区变更 <span id="changes-count" class="pill">0</span></button>

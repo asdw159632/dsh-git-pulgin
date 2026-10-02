@@ -105,7 +105,7 @@ window.__ModuleLoader__.load({
      * opens the workspace that session belongs to. The shell rewrites the
      * selection on every navigation, so it is re-read on a timer and the iframe
      * is re-keyed only when the value actually changes.
-     * @param props - `minHeight` (defaults to a panel-sized floor).
+     * @param props - `minHeight` (defaults to a panel-sized floor), `listOnly`.
      */
     function GitAppFrame(props) {
       const [sessionId, setSessionId] = React.useState(readCurrentSession)
@@ -118,7 +118,11 @@ window.__ModuleLoader__.load({
       }, [])
 
       const query = sessionId === '' ? '' : `?session=${encodeURIComponent(sessionId)}`
-      const embedUrl = `${APP_URL}${query}${query === '' ? '?' : '&'}embed=1`
+      // The docked copy asks for the list-only layout: the shell already has a
+      // full panel with a diff column, and a second one in a narrow pane is
+      // redundant. Diffs stay reachable from the main panel.
+      const panes = props?.listOnly === true ? '&panes=list' : ''
+      const embedUrl = `${APP_URL}${query}${query === '' ? '?' : '&'}embed=1${panes}`
 
       // No title bar of our own: the tab chip (right sidebar) or the sidebar
       // row (main panel) already names this, and the app has its own header.
@@ -284,9 +288,9 @@ window.__ModuleLoader__.load({
               sidebarCtx.slots.register(
                 { name: 'sidebar.right.pane.tab', key: SUMMARY_ID, locale: NS },
                 // The same app the left sidebar embeds, so this window carries
-                // the full toolbar, tabs, commit graph and operations instead of
-                // a hand-built subset of them.
-                (props) => h(GitAppFrame, { ...props, minHeight: 0 }),
+                // the full toolbar, tabs, commit graph and operations; it skips
+                // only the diff column, which the main panel owns.
+                (props) => h(GitAppFrame, { ...props, minHeight: 0, listOnly: true }),
               ),
             ),
           'dsh-git-plugin: summary tab body',

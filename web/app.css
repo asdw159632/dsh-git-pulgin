@@ -150,6 +150,13 @@ input[type='text']:focus, select:focus, textarea:focus { border-color: var(--acc
 .splitter { width: 5px; cursor: col-resize; background: transparent; flex: 0 0 auto; }
 .splitter:hover { background: var(--accent-soft); }
 
+/* List-only layout, used by the right-sidebar window (`?panes=list`): the graph,
+   the worktree groupings and the commit box go full width, and the diff column
+   and its drag handle are removed rather than merely squeezed. */
+body.list-only .col.right, body.list-only .splitter { display: none; }
+body.list-only .col.left { flex: 1 1 100%; }
+.list-only-note { flex: 0 0 auto; padding: 6px 10px; border-bottom: 1px solid var(--border); }
+
 .tabs { display: flex; gap: 2px; padding: 6px 8px 0; border-bottom: 1px solid var(--border); background: var(--bg-2); flex: 0 0 auto; }
 .tab {
   background: transparent; border: 1px solid transparent; border-bottom: none;

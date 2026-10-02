@@ -270,6 +270,14 @@ function syncHostTheme() {
  */
 const SESSION_ID = new URLSearchParams(window.location.search).get('session') ?? ''
 
+/**
+ * `?panes=list` is the right-sidebar window: it shows the graph, the worktree
+ * groupings and the commit box full width, with no diff column. The shell
+ * already has a full panel with one, and a second one inside a docked pane is
+ * both redundant and too cramped to read.
+ */
+const LIST_ONLY = new URLSearchParams(window.location.search).get('panes') === 'list'
+
 async function loadRepoList() {
   const payload = await apiGet('/dsh-git/api/repos', SESSION_ID === '' ? {} : { session: SESSION_ID })
   const select = $('#repo-select')
@@ -691,6 +699,9 @@ async function selectCommit(sha) {
   state.selectedCommit = sha
   state.selectedDiff = null
   renderGraph()
+  // List-only window: keep the selection feedback but skip the detail fetch and
+  // its rendering, which has nowhere to show up.
+  if (LIST_ONLY) return
   setBusy(true, '读取提交…')
   try {
     const [detail, diff] = await Promise.all([
@@ -710,6 +721,8 @@ async function selectCommit(sha) {
 }
 
 async function selectDiff(scope, path, sha, title) {
+  // List-only window: there is no column to render a diff into.
+  if (LIST_ONLY) return
   setBusy(true, '读取差异…')
   try {
     const payload = await apiGet('/dsh-git/api/diff', {
@@ -1094,6 +1107,10 @@ function bindEvents() {
 async function boot() {
   syncHostTheme()
   bindEvents()
+  if (LIST_ONLY) {
+    document.body.classList.add('list-only')
+    $('#list-only-note').hidden = false
+  }
   setupSplitter()
   setupAutoRefresh()
   const saved = store.get('dsh-git.repo', '')

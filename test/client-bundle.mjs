@@ -264,6 +264,13 @@ check(
   typeof summaryFrame?.props?.src === 'string' && summaryFrame.props.src.startsWith('/dsh-git/'),
   summaryFrame?.props?.src,
 )
+// The docked copy asks for the list-only layout: no diff column in the right
+// sidebar, because the main panel already has one.
+check(
+  '右栏窗口请求 list-only 布局',
+  typeof summaryFrame?.props?.src === 'string' && summaryFrame.props.src.includes('panes=list'),
+  summaryFrame?.props?.src,
+)
 
 // Render both components: the icon must be an element, the page must embed the app.
 const icon = panelList.component({ size: 20 })
@@ -285,6 +292,7 @@ function findIframe(node) {
 const iframe = findIframe(render(page))
 check('页面内嵌 /dsh-git/', typeof iframe?.props?.src === 'string' && iframe.props.src.startsWith('/dsh-git/'), iframe?.props?.src)
 check('无会话时不带 session 参数', iframe?.props?.src === '/dsh-git/?embed=1', iframe?.props?.src)
+check('主面板不请求 list-only（保留 diff 列）', iframe?.props?.src?.includes('panes=list') !== true, iframe?.props?.src)
 
 // With a session persisted by the shell, the frame must carry it so the host
 // can open the workspace that session belongs to.
@@ -319,6 +327,11 @@ check(
   `commitbox@${commitBoxIndex} changes-list@${changesPaneEnd}`,
 )
 check('页面不再有内嵌用的新标签页链接', !appHtml.includes('standalone-link'))
+// The list-only layout is a CSS body class plus this note; both must ship, or
+// the docked window would silently show nothing where the diff used to be.
+check('页面带 list-only 提示元素', appHtml.includes('id="list-only-note"'))
+const appCss = await (await fetch(`${base}/dsh-git/app.css`)).text()
+check('样式表含 list-only 规则', appCss.includes('body.list-only .col.right'))
 
 console.log(`\n结果：${passed} 通过，${failed} 失败`)
 process.exitCode = failed === 0 ? 0 : 1
