@@ -1,0 +1,39 @@
+{
+  "name": "dsh-git-plugin",
+  "version": "1.0.0",
+  "private": true,
+  "description": "DSH 插件：可视化 Git 提交历史，并提供 add / commit / pull / push / merge 等操作。 · DSH plugin: visualize the git history of a repository and operate on it from the GUI.",
+  "type": "module",
+  "main": "lib/index.js",
+  "license": "MIT",
+  "keywords": [
+    "deepseek",
+    "harness",
+    "dsh",
+    "dsh-plugin",
+    "git",
+    "history",
+    "scm"
+  ],
+  "dsh": {
+    "client": {
+      "platform": "web"
+    }
+  },
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./client/client.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "web",
+    "client",
+    "test",
+    "install.patch.yml",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  }
+}

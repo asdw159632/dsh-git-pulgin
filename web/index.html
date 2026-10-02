@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Git 历史与操作</title>
+<link rel="stylesheet" href="/dsh-git/app.css">
+</head>
+<body>
+<div id="app" class="app">
+  <header class="topbar">
+    <div class="row">
+      <span class="brand">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="6.5" cy="5" r="2.4"></circle><circle cx="6.5" cy="19" r="2.4"></circle>
+          <circle cx="17.5" cy="8.5" r="2.4"></circle><path d="M6.5 7.4v9.2"></path>
+          <path d="M6.5 12.2c0-3.4 2.2-3.7 5-3.7h3.6"></path>
+        </svg>
+        Git
+      </span>
+      <select id="repo-select" class="grow" title="选择仓库"></select>
+      <input id="repo-input" class="grow" type="text" spellcheck="false" placeholder="仓库绝对路径，例如 D:\\project">
+      <button id="repo-open" class="btn">打开</button>
+      <button id="btn-refresh" class="btn" title="重新读取仓库状态">刷新</button>
+    </div>
+    <div class="row meta" id="repo-meta">
+      <span class="muted">未选择仓库</span>
+    </div>
+    <div class="row actions">
+      <button class="btn" data-act="fetch" title="git fetch --prune">抓取</button>
+      <button class="btn primary-ghost" data-act="pull" title="git pull">拉取</button>
+      <button class="btn primary-ghost" data-act="push" title="git push">推送</button>
+      <button class="btn" data-act="merge" title="git merge">合并…</button>
+      <button class="btn" data-act="branch" title="新建分支并切换">新建分支…</button>
+      <label class="inline" title="拉取时使用 rebase 而不是 merge">
+        <input type="checkbox" id="pull-rebase"> 拉取用 rebase
+      </label>
+      <label class="inline" title="推送时使用 --force-with-lease（安全强推）">
+        <input type="checkbox" id="push-force"> 安全强推
+      </label>
+      <span class="spacer"></span>
+      <label class="inline" title="每 10 秒刷新一次工作区状态">
+        <input type="checkbox" id="auto-refresh"> 自动刷新
+      </label>
+      <a id="standalone-link" class="link" href="/dsh-git/" target="_blank" rel="noreferrer">新标签页 ↗</a>
+    </div>
+  </header>
+
+  <div id="banner" class="banner" hidden></div>
+
+  <main class="layout">
+    <section class="col left">
+      <div class="tabs">
+        <button class="tab active" data-tab="history">提交历史</button>
+        <button class="tab" data-tab="changes">工作区变更 <span id="changes-count" class="pill">0</span></button>
+      </div>
+
+      <div id="pane-history" class="pane">
+        <div class="toolbar">
+          <input id="log-search" type="text" placeholder="搜索提交信息 / 作者">
+          <select id="log-ref" title="查看范围">
+            <option value="">当前分支</option>
+            <option value="--all">全部分支</option>
+            <option value="--branches">本地分支</option>
+            <option value="--remotes">远程分支</option>
+            <option value="--tags">标签</option>
+          </select>
+          <input id="log-path" type="text" placeholder="只看指定路径的提交">
+          <button id="btn-log-apply" class="btn small">查询</button>
+        </div>
+        <div id="graph" class="graph"></div>
+        <div class="loadmore"><button id="btn-log-more" class="btn small" hidden>加载更多</button></div>
+      </div>
+
+      <div id="pane-changes" class="pane" hidden>
+        <div class="toolbar wrap">
+          <button class="btn small" data-act="stage-selected">暂存选中</button>
+          <button class="btn small" data-act="unstage-selected">取消暂存选中</button>
+          <button class="btn small" data-act="discard-selected">丢弃选中</button>
+          <button class="btn small" data-act="stage-all">全部暂存</button>
+          <button class="btn small" data-act="unstage-all">全部取消暂存</button>
+          <span class="spacer"></span>
+          <label class="inline"><input type="checkbox" id="select-all"> 全选</label>
+        </div>
+        <div id="changes-list" class="changes"></div>
+        <div class="commitbox">
+          <textarea id="commit-message" rows="3" placeholder="提交信息（第一行作为标题）"></textarea>
+          <div class="row wrap">
+            <label class="inline"><input type="checkbox" id="commit-amend"> amend 上一次提交</label>
+            <label class="inline"><input type="checkbox" id="commit-all"> 包含未暂存改动 (-a)</label>
+            <span class="spacer"></span>
+            <button id="btn-commit" class="btn primary">提交</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="splitter" id="splitter" title="拖动调整宽度"></div>
+
+    <section class="col right" id="detail">
+      <div class="detail-empty muted">选择左侧的一次提交或一个文件，这里显示详情与差异。</div>
+    </section>
+  </main>
+
+  <div id="modal-backdrop" class="backdrop" hidden>
+    <div class="modal" role="dialog" aria-modal="true">
+      <div class="modal-head"><strong id="modal-title">操作</strong><button id="modal-close" class="btn icon">✕</button></div>
+      <div id="modal-body" class="modal-body"></div>
+      <div class="modal-foot">
+        <span id="modal-error" class="error"></span>
+        <button id="modal-cancel" class="btn">取消</button>
+        <button id="modal-ok" class="btn primary">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+  <div id="busy" class="busy" hidden><div class="spinner"></div><span id="busy-text">处理中…</span></div>
+</div>
+<script src="/dsh-git/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+# Dependencies (the plugin itself has none at runtime; these appear only if a
+# profile installs the package with a package manager)
+node_modules/
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+
+# Scratch repositories created by test/git-smoke.mjs and test/http-smoke.mjs
+.test-sandbox/
+
+# Local profile / editor noise
+*.log
+*.bak
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

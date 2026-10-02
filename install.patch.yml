@@ -1,0 +1,24 @@
+# Ready-to-use overlay for a trial install that does not touch any profile:
+#
+#   dsh --profile <profile> web --patch '<this repo>/install.patch.yml'
+#
+# The package must already be resolvable from the profile (see README 方式 A/方式 B).
+# A bare specifier is the verified form. `name` also accepts an absolute path or
+# a file URL, but the loader turns a directory path into a `file:` URL and Node
+# refuses a DIRECTORY import (`failed to import`), so that form does not work for
+# this package as-is; pointing at lib/index.js has not been tested.
+- insert:
+    - id: git-plugin
+      name: dsh-git-plugin
+      config:
+        # Which repository the panel opens with. Leave it EMPTY (or drop the
+        # key) to use the first repository the host already knows through
+        # ctx.workspaceRegistry; repositories are switchable in the panel.
+        repo: ''
+        # Repository allow-list. Empty (or absent) accepts any existing worktree.
+        roots: []
+        # git executable; omit to auto-detect (PATH, then well-known installs).
+        # gitPath: 'D:\software\Git\Git\cmd\git.exe'
+        # Extra authorities accepted as same-origin (reverse proxy / LAN name).
+        trustedHosts: []
+        logLimit: 200
