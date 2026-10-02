@@ -39,17 +39,11 @@ window.__ModuleLoader__.load({
     const DICTS = {
       zh: {
         panel: 'Git',
-        title: 'Git 历史与操作',
-        open: '在新标签页打开',
-        hint: '若面板未渲染，请在新标签页打开。',
         summary: 'Git',
         summaryHint: '在右侧边栏打开 Git',
       },
       en: {
         panel: 'Git',
-        title: 'Git history and operations',
-        open: 'Open in a new tab',
-        hint: 'If the panel does not render, open it in a new tab.',
         summary: 'Git',
         summaryHint: 'Open Git in the right sidebar',
       },
