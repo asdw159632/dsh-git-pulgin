@@ -137,10 +137,12 @@ Start-Process "$b/dsh-git/"
 
 DSH 的右侧边栏是一个 **tab dock**，不是一个普通 slot：`rightbar` 那个座位由 `dsh-client-ui-sidebar-right` 自己占着，别的包不能直接往里塞内容。给该栏加内容的公开路径是**两步注册**，本插件照做：
 
-1. **声明 tab 类型** —— `ctx.sidebarRightTabs.register({ id, kind, title })`，返回 disposer。`id` 是这套实现的身份（这里是 `dsh-git-plugin/summary`，同一 `id` 重复注册会抛错），`kind` 是打开时用的名字（`git-summary`）。
+1. **声明 tab 类型** —— `ctx.sidebarRightTabs.register({ id, kind, title, guide })`，返回 disposer。`id` 是这套实现的身份（这里是 `dsh-git-plugin/summary`，同一 `id` 重复注册会抛错），`kind` 是打开时用的名字（`git-summary`）。
 2. **注册该类型的 body** —— `ctx.slots.register({ name: 'sidebar.right.pane.tab', key: <id> }, Body)`，body 组件从框架注入的 `useTabInfo()` 拿到 `{ sidebar, panel, tab }`。
 
-打开动作是 `ctx.sidebarRight.openTab('git-summary')`，本插件把它挂在**左侧栏页脚的 `sidebar.footer.action`** 上（`wide` 时显示文字，收起时只显示图标）。这两个服务都由右侧边栏包提供，所以整块注册包在 `ctx.inject(['sidebarRightTabs', 'sidebarRight'], ...)` 里 —— 没有右侧边栏的宿主会整块跳过，不影响主要的 Git 面板。
+> ⚠️ **只有第 1、2 步，右栏里是看不到这个 tab 的。** 右栏平时显示的是**guide 页**（那一排「工作区文件 / 新建终端 / 浏览器」卡片），页类型必须在 `guide: [{ id, order, title, description, icon }]` 里列一条入口，才会出现在那一排里；否则类型注册成功、也能被 `openTab` 打开，但界面里没有任何入口。`icon` 是可选组件，本插件复用了侧栏那个分支图标。
+
+打开动作是 `ctx.sidebarRight.openTab('git-summary')`；除了 guide 入口，本插件还把它挂在**左侧栏页脚的 `sidebar.footer.action`** 上（`wide` 时显示文字，收起时只显示图标）。这两个服务都由右侧边栏包提供，所以整块注册包在 `ctx.inject(['sidebarRightTabs', 'sidebarRight'], ...)` 里 —— 没有右侧边栏的宿主会整块跳过，不影响主要的 Git 面板；在本机这套 0.2.0-rc.2 桌面宿主里，这两个服务由 profile 的 `dsh-web-app` bundle 通过 `@deepseek-ai/dsh-client-ui-sidebar-right` 提供。
 
 窗口内容只读：每 10 秒（外加手动「刷新」）取一次 `/api/repos?session=` → `/api/status` + `/api/log?limit=1`，渲染仓库名、分支、待推送/待拉取、冲突/已暂存/未暂存/未跟踪计数与最近提交；「完整面板」按钮调 `ctx.layout.selectPanel('git')` 切回左栏的完整界面。写操作全部留在完整面板里。
 

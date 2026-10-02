@@ -220,6 +220,17 @@ const tabType = registrations.find(entry => entry.kind === 'tabType')
 check('注册右侧边栏 tab 类型', tabType?.definition?.kind === 'git-summary', JSON.stringify(tabType?.definition))
 check('tab 类型带 id 与 title', typeof tabType?.definition?.id === 'string' && typeof tabType?.definition?.title === 'function')
 check(
+  'tab 类型带 guide 入口（否则右栏不会列出它）',
+  Array.isArray(tabType?.definition?.guide) && tabType.definition.guide.length > 0,
+  JSON.stringify(tabType?.definition?.guide),
+)
+check(
+  'guide 入口有 id/title/description',
+  typeof tabType?.definition?.guide?.[0]?.id === 'string'
+    && typeof tabType?.definition?.guide?.[0]?.title === 'function'
+    && typeof tabType?.definition?.guide?.[0]?.description === 'function',
+)
+check(
   '只向宿主请求右侧边栏服务',
   registrations.some(entry => entry.kind === 'injected' && Array.isArray(entry.services)
     && entry.services.includes('sidebarRightTabs') && entry.services.includes('sidebarRight')),

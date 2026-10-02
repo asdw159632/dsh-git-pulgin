@@ -499,6 +499,18 @@ window.__ModuleLoader__.load({
               id: SUMMARY_ID,
               kind: SUMMARY_KIND,
               title: () => t('summary'),
+              // Without `guide` the type exists but nothing ever offers it: the
+              // right sidebar's guide page is where a page type lists its entry
+              // box, and the strip's add control opens that page.
+              guide: [
+                {
+                  id: 'summary',
+                  order: 60,
+                  title: () => t('summary'),
+                  description: () => t('summaryHint'),
+                  icon: GitPanelIcon,
+                },
+              ],
             }),
           'dsh-git-plugin: summary tab type',
         )
@@ -525,9 +537,10 @@ window.__ModuleLoader__.load({
           'dsh-git-plugin: summary tab body',
         )
 
-        // The left sidebar's footer action is how the window is reached.
+        // The left sidebar's footer action opens it too — the guide entry above
+        // is the discoverable path, this is the shortcut.
         sidebarCtx.slots.inject('sidebar.footer.action', () =>
-          sidebarCtx.slots.register({ name: 'sidebar.footer.action', order: 60, locale: NS }, (props) =>
+          sidebarCtx.slots.register({ name: 'sidebar.footer.action', id: 'git-summary', order: 60, locale: NS }, (props) =>
             h(SummaryFooterButton, {
               ...props,
               copy: t,
