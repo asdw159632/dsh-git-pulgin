@@ -25,6 +25,12 @@ window.__ModuleLoader__.load({
     const NS = 'dshGit'
     /** Where the host serves the app. */
     const APP_URL = '/dsh-git/'
+    /**
+     * The store the workspace shell persists the session shown in the main
+     * panel under (`createSnapshotStore(..., { persist: { name } })`). Reading
+     * it is how this half knows which workspace the user is actually in.
+     */
+    const CURRENT_SESSION_KEY = 'dsh.sessions.current'
 
     const DICTS = {
       zh: {
@@ -71,10 +77,46 @@ window.__ModuleLoader__.load({
     }
 
     /**
+     * The session the shell currently shows, read from the selection store the
+     * workspace shell itself persists. Best effort by design: a missing,
+     * unreadable or unexpected entry simply means "no session hint", and the
+     * host then falls back to plain workspace detection.
+     * @returns the session id, or '' when unknown.
+     */
+    function readCurrentSession() {
+      try {
+        const raw = window.localStorage.getItem(CURRENT_SESSION_KEY)
+        if (raw === null) return ''
+        const value = JSON.parse(raw)
+        return typeof value?.sessionId === 'string' ? value.sessionId : ''
+      } catch {
+        return ''
+      }
+    }
+
+    /**
      * The Git page: one same-origin iframe over the host's app.
      * The wrapper keeps a real height even where `height: 100%` cannot resolve.
+     *
+     * The current session id rides along as `?session=`, so the embedded app
+     * opens the workspace that session belongs to. The shell rewrites the
+     * selection on every navigation, so it is re-read on a timer and the iframe
+     * is re-keyed only when the value actually changes.
      */
     function GitPage() {
+      const [sessionId, setSessionId] = React.useState(readCurrentSession)
+      React.useEffect(() => {
+        const timer = window.setInterval(() => {
+          const next = readCurrentSession()
+          setSessionId((current) => (current === next ? current : next))
+        }, 1500)
+        return () => window.clearInterval(timer)
+      }, [])
+
+      const query = sessionId === '' ? '' : `?session=${encodeURIComponent(sessionId)}`
+      const embedUrl = `${APP_URL}${query}${query === '' ? '?' : '&'}embed=1`
+      const tabUrl = `${APP_URL}${query}`
+
       return h(
         'div',
         {
@@ -106,12 +148,13 @@ window.__ModuleLoader__.load({
           h('span', null, 'Git 历史与操作'),
           h(
             'a',
-            { href: APP_URL, target: '_blank', rel: 'noreferrer', style: { color: 'inherit' } },
+            { href: tabUrl, target: '_blank', rel: 'noreferrer', style: { color: 'inherit' } },
             '在新标签页打开 ↗',
           ),
         ),
         h('iframe', {
-          src: `${APP_URL}?embed=1`,
+          key: embedUrl,
+          src: embedUrl,
           title: 'Git',
           style: { flex: '1 1 auto', width: '100%', minHeight: 0, border: '0', background: 'transparent' },
         }),

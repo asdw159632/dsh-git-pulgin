@@ -18,6 +18,7 @@ DSH（DeepSeek Harness）插件：**可视化 Git 提交历史**，并在 GUI �
 | 分支 | 分支下拉切换、新建并切换分支、合并（`--no-ff` / `--ff-only` / `--no-commit` / 自定义合并信息） |
 | 冲突与进行中状态 | 自动识别 merging / rebasing / cherry-picking / reverting，列出冲突文件，一键「全部标记为已解决（暂存）」，一键中止操作 |
 | 其它 | 未跟踪文件的合成「new file」差异视图、大差异截断保护、仓库本地提交身份就地设置、每 10 秒可选自动状态刷新、`/api/selfcheck` 自检 |
+| 跟随当前工作区 | 内嵌页面按宿主当前会话（`localStorage["dsh.sessions.current"]`）自动打开该会话所属工作区的仓库；会话切换时自动跟随，也可在工具栏手选其它仓库 |
 
 ## 安装
 
@@ -110,10 +111,24 @@ Start-Process "$b/dsh-git/"
 
 ### 默认仓库的解析顺序
 
-1. `repo` 非空 → 直接用它（必须是已存在的工作区仓库）；
-2. `repo` **留空或省略** → 取 `ctx.workspaceRegistry` 里**第一个 Git 仓库**（宿主已知的工作区/项目目录）；旧宿主没有 `workspaceRegistry` 时该来源为空；
-3. 都没有 → 若宿主进程的 `cwd` 本身是仓库就用它；
-4. 仍然没有 → 接口报「没有可用的仓库：请先在界面上选择一个仓库路径」，可在面板工具栏切换仓库。
+1. `repo` 非空 → 直接用它（必须是已存在的工作区仓库，此时 `session` 不参与）；
+2. `repo` **留空或省略**，且请求带 `session=<会话 id>` → 该会话所属**工作区**的仓库（见下「跟随当前工作区」）；
+3. 否则取 `ctx.workspaceRegistry` 里**第一个 Git 仓库**（宿主已知的工作区/项目目录）；旧宿主没有 `workspaceRegistry` 时该来源为空；
+4. 都没有 → 若宿主进程的 `cwd` 本身是仓库就用它；
+5. 仍然没有 → 接口报「没有可用的仓库：请先在界面上选择一个仓库路径」，可在面板工具栏切换仓库。
+
+未知或空的 `session` 一律按「没有提示」处理，不会注入不存在的路径。
+
+### 跟随当前工作区
+
+面板要「打开你正在用的那个项目」，而宿主侧**没有**「当前工作区」这个概念 —— `ctx.workspaceRegistry` 只提供一份顺序稳定的工作区列表，不随活动变化。真正的「当前」只有浏览器里知道。所以两半配合：
+
+1. `client/client.js` 读 `localStorage["dsh.sessions.current"]`（客户端 store `createSnapshotStore(..., { persist: { name } })` 的落盘格式就是 `{ sessionId }`），每 1.5 秒复查一次；
+2. 变化时把 `?session=<id>` 传给内嵌页面（iframe 以 URL 为 key，值变才重载）；
+3. `web/app.js` 首次取仓库列表时带上该参数；
+4. 宿主用 `?session=` 在 `ctx.workspaceRegistry` 里找 `sessionIds` 含该会话的工作区（`WorkspaceEntity.sessionIds` 已被过滤为「cwd 校验通过」的会话），把它的路径提到候选列表最前。
+
+任何一环缺失（旧宿主不认 `session`、localStorage 为空、会话找不到工作区）都只是退回「列表第一个仓库」，不会报错。带 `session` 时，上一次手选的仓库**不会**覆盖会话工作区 —— 想固定用别的仓库，就在工具栏选（该选择对不带 `session` 的访问仍然生效）。
 
 本仓库自带的 `install.patch.yml` 用的就是 `repo: ''` 的自动探测形态，不改任何路径即可开箱使用。另注意 `roots` 非空时对**所有**请求（读与写）生效，只能指向白名单内的仓库。
 
@@ -135,7 +150,7 @@ Start-Process "$b/dsh-git/"
 | GET | `/dsh-git/` | 页面 |
 | GET | `/dsh-git/app.css`、`/dsh-git/app.js` | 静态资源 |
 | GET | `/dsh-git/api/selfcheck` | 插件自检：git 路径、白名单、默认仓库、工作区目录、路由数、客户端 bundle 是否已进入启动图 |
-| GET | `/dsh-git/api/repos` | 候选仓库、默认仓库、git 路径 |
+| GET | `/dsh-git/api/repos` | 候选仓库、默认仓库、git 路径；`session=<会话 id>` 时 `defaultRepo` 跟随该会话所属工作区 |
 | GET | `/dsh-git/api/info` | 仓库根、分支、上游、ahead/behind、远程、身份、进行中状态 |
 | GET | `/dsh-git/api/status` | `status --porcelain=v2 --branch` 解析结果 + 进行中状态 + stash 数 |
 | GET | `/dsh-git/api/log` | `limit/skip/ref/search/author/path` |
@@ -182,14 +197,19 @@ node "$P\test\http-smoke.mjs"
 
 # 3) 在线客户端半边：对运行中的宿主校验启动图、bundle 可取、工厂注册与两个座位（26 项）
 #    参数：<宿主地址> [launch token]
+#    dsh web 宿主用首页的 __DSH_BOOT__；桌面宿主把首页挡在 token 网关后（401）时，
+#    自动改用插件自己的 /api/selfcheck 取同一条启动图行，因此桌面宿主无需 token：
+node "$P\test\client-bundle.mjs" http://127.0.0.1:19387
 node "$P\test\client-bundle.mjs" http://127.0.0.1:4599 <token>
 ```
 
 前两套会启动 git 子进程并捕获其输出，**在 DSH 的 workspace-write 沙箱下会以 `spawn EPERM` 失败**（沙箱禁止管道 stdio）；请在普通终端运行，或以 `danger-full-access` 运行。
 
-本机验证记录（DSH `0.2.0-rc.2` 桌面宿主）：`47 + 68` 项全部通过。客户端半边另用一条**等价校验**跑通 **25 项** —— 桌面宿主现在把首页挡在 launch token 之后（无 token 请求首页得 401），所以那条校验改为从 `/dsh-git/api/selfcheck` 取同一条启动图行，再执行宿主线上返回的 bundle，断言工厂、`sidebar.panellist` / `main` 两个座位、locale 字典、图标 SVG 与 iframe 嵌入；`client-bundle.mjs` 自带的 `?token=` 握手需要另起一个 `dsh web` 宿主。另在桌面宿主上确认 bundle 与应用页面均返回 200。
+本机验证记录（DSH `0.2.0-rc.2` 桌面宿主）：`47 + 68 + 26` 项全部通过，第 3 套直接从桌面宿主取 bundle 执行，断言工厂、`sidebar.panellist` / `main` 两个座位、locale 字典、图标 SVG、iframe 嵌入，以及有/无会话时的 `session` 参数。另在桌面宿主上确认 bundle 与应用页面均返回 200。
 
 `repo: ''` 的自动探测行为单独验证 15 项：`repo` 省略 / `''` / 全空白三种写法都解析到 `workspaceRegistry` 提供的仓库，且 `/api/info`、`/api/repos`、`/api/status`、`/api/log` 全部正常。
+
+「跟随当前工作区」另验证 9 项（把真实路由表挂到 node http 服务上，用桩 `workspaceForSession`）：带 `session` 时 `defaultRepo` 跟随该会话的工作区、`session` 字段回显、候选列表含该工作区；无 `session` / 未知 `session` / 空 `session` 都退回列表顺序；`session` 指向不存在的路径时不会被注入。客户端半边确认线上 bundle 的 `rev` 随 `client/client.js` 变更而变，且 bundle 里已含新代码。
 
 ## 目录结构
 
@@ -215,7 +235,7 @@ node "$P\test\client-bundle.mjs" http://127.0.0.1:4599 <token>
 
 ## 已知限制
 
-- **代码替换需要重载条目**：宿主的 HMR 只监听 profile 配置（`root: []`），不监听插件源码；改完 `lib/*.js` 后需要用「禁用→启用」或重启让宿主重新导入模块。`client/client.js` 变更会被 client-modules 的 HMR 按文件元数据识别。
+- **改 `lib/*.js` 必须重启宿主**：宿主的 HMR 只监听 profile 配置（`root: []`），不监听插件源码。改配置（如 `repo`）会当场热重组；但**改 `lib/*.js` 后「禁用→启用」并不能生效** —— 实测禁用后再启用，Node 的 ESM 模块缓存仍返回旧模块（`/api/repos` 的响应里没有新字段即为此证），必须重启 DSH 宿主才会重新导入。`client/client.js` 则会被 client-modules 的 HMR 按文件元数据识别，刷新页面即生效（bundle 的 `rev` 会变）。
 - 提交图泳道按「已加载窗口」布局：父提交不在窗口内时按同一泳道向下画，加载更多后自然接续。
 - 不做图形化 diff 合并编辑器；冲突解决走「编辑文件 → 全部标记为已解决（暂存）→ 提交」。
 - 不主动管理凭据（不弹窗、不写凭据存储），HTTPS 远程依赖系统 git 凭据助手。

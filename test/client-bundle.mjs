@@ -39,32 +39,51 @@ if (token !== '') {
 const headers = cookie === '' ? {} : { cookie }
 
 const response = await fetch(indexUrl, { headers })
-check('首页可访问', response.status === 200, `HTTP ${response.status}`)
-const html = await response.text()
+const indexOk = response.status === 200
+const html = indexOk ? await response.text() : ''
 
 // The graph global is injected as `globalThis["__DSH_BOOT__"] = {...}`, with
 // `<` escaped inside its JSON so it cannot break out of the script element.
-const match = /globalThis\["__DSH_BOOT__"\]\s*=\s*(\{.*?\})\s*<\/script>/s.exec(html)
-  ?? /window\.__DSH_BOOT__\s*=\s*(\{.*?\})\s*;?\s*<\/script>/s.exec(html)
-check('首页带有启动图 __DSH_BOOT__', match !== null)
-if (match === null) {
-  console.log(html.slice(0, 800))
-  process.exit(1)
-}
+const match = indexOk
+  ? (/globalThis\["__DSH_BOOT__"\]\s*=\s*(\{.*?\})\s*<\/script>/s.exec(html)
+    ?? /window\.__DSH_BOOT__\s*=\s*(\{.*?\})\s*;?\s*<\/script>/s.exec(html))
+  : null
 
-const boot = JSON.parse(match[1].replace(/\\u003c/g, '<'))
-const rows = []
-const collect = (value) => {
-  if (Array.isArray(value)) {
-    for (const item of value) collect(item)
-    return
+// A token-gated desktop host answers the index with 401 and exposes no graph.
+// The plugin's own /api/selfcheck reads the SAME row out of the host's
+// client-module registry, so the bundle checks below still apply there.
+let rows = []
+let rowSource = ''
+if (match !== null) {
+  check('首页可访问', true)
+  check('首页带有启动图 __DSH_BOOT__', true)
+  const boot = JSON.parse(match[1].replace(/\\u003c/g, '<'))
+  const collect = (value) => {
+    if (Array.isArray(value)) {
+      for (const item of value) collect(item)
+      return
+    }
+    if (value !== null && typeof value === 'object') {
+      if (typeof value.id === 'string' && typeof value.url === 'string') rows.push(value)
+      for (const child of Object.values(value)) collect(child)
+    }
   }
-  if (value !== null && typeof value === 'object') {
-    if (typeof value.id === 'string' && typeof value.url === 'string') rows.push(value)
-    for (const child of Object.values(value)) collect(child)
+  collect(boot)
+  rowSource = '__DSH_BOOT__'
+} else {
+  const status = response.status
+  const self = await (await fetch(`${base}/dsh-git/api/selfcheck`)).json().catch(() => null)
+  const selfRow = self?.client?.row
+  const usable = status === 401 && selfRow?.id === PACKAGE_ID
+  check('首页被 token 网关拦截时改用 selfcheck 取启动图行', usable || status !== 401, `HTTP ${status}`)
+  if (selfRow !== undefined && selfRow !== null) rows = [selfRow]
+  rowSource = 'selfcheck'
+  if (!usable) {
+    console.log(indexOk ? html.slice(0, 800) : `HTTP ${status}`)
+    process.exit(1)
   }
 }
-collect(boot)
+console.log(`    启动图来源: ${rowSource}`)
 
 const row = rows.find(entry => entry.id === PACKAGE_ID)
 check('启动图包含 dsh-git-plugin 行', row !== undefined, rows.map(r => r.id).slice(0, 12).join(', '))
@@ -91,9 +110,26 @@ globalThis.window = {
       registration = entry
     },
   },
+  // The page polls the shell's persisted session; the stub records the timer
+  // setup and lets the test drive localStorage directly.
+  setInterval: () => 0,
+  clearInterval: () => {},
+  localStorage: {
+    value: null,
+    getItem() {
+      return this.value
+    },
+    setItem(_key, next) {
+      this.value = next
+    },
+  },
 }
+// A minimal store, so `useState` gives a real value and `useEffect` runs its
+// body once (the page subscribes to the shell's persisted session there).
 const reactStub = {
   createElement: (tag, props, ...children) => ({ tag, props, children }),
+  useState: (initial) => [typeof initial === 'function' ? initial() : initial, () => {}],
+  useEffect: (callback) => { callback() },
 }
 const required = []
 const requireStub = (specifier) => {
@@ -162,16 +198,45 @@ const icon = panelList.component({ size: 20 })
 check('图标渲染出元素', icon !== null && typeof icon === 'object' && icon.tag === 'svg')
 const page = mainPanel.component({})
 check('页面渲染出容器', page !== null && typeof page === 'object')
-const iframe = (function find(node) {
+
+/** Depth-first search for the embedded frame. */
+function findIframe(node) {
   if (node === null || typeof node !== 'object') return null
   if (node.tag === 'iframe') return node
   for (const child of node.children ?? []) {
-    const hit = find(child)
+    const hit = findIframe(child)
     if (hit !== null) return hit
   }
   return null
-})(page)
+}
+
+const iframe = findIframe(page)
 check('页面内嵌 /dsh-git/', typeof iframe?.props?.src === 'string' && iframe.props.src.startsWith('/dsh-git/'), iframe?.props?.src)
+check('无会话时不带 session 参数', iframe?.props?.src === '/dsh-git/?embed=1', iframe?.props?.src)
+
+// With a session persisted by the shell, the frame must carry it so the host
+// can open the workspace that session belongs to.
+globalThis.window.localStorage.setItem('dsh.sessions.current', JSON.stringify({ sessionId: 'session-test-1' }))
+const withSession = findIframe(mainPanel.component({}))
+check(
+  '带会话时 iframe 传 session 参数',
+  typeof withSession?.props?.src === 'string' && withSession.props.src.includes('session=session-test-1'),
+  withSession?.props?.src,
+)
+const withSessionLink = (function findLink(node) {
+  if (node === null || typeof node !== 'object') return null
+  if (node.tag === 'a') return node
+  for (const child of node.children ?? []) {
+    const hit = findLink(child)
+    if (hit !== null) return hit
+  }
+  return null
+})(mainPanel.component({}))
+check(
+  '新标签页链接同样带 session',
+  typeof withSessionLink?.props?.href === 'string' && withSessionLink.props.href.includes('session=session-test-1'),
+  withSessionLink?.props?.href,
+)
 
 // The live host must actually serve that app.
 const appResponse = await fetch(`${base}/dsh-git/`)

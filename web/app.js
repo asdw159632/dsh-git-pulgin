@@ -263,8 +263,15 @@ function syncHostTheme() {
  * repository selection
  * ------------------------------------------------------------------ */
 
+/**
+ * The session the shell currently shows, handed over by the client half as
+ * `?session=`. It makes the panel open the workspace that session belongs to,
+ * rather than merely the first workspace the host happens to know about.
+ */
+const SESSION_ID = new URLSearchParams(window.location.search).get('session') ?? ''
+
 async function loadRepoList() {
-  const payload = await apiGet('/dsh-git/api/repos')
+  const payload = await apiGet('/dsh-git/api/repos', SESSION_ID === '' ? {} : { session: SESSION_ID })
   const select = $('#repo-select')
   const options = []
   if (payload.repos.length === 0) options.push(el('option', { value: '', text: '（未发现仓库）' }))
@@ -1090,7 +1097,10 @@ async function boot() {
   setupSplitter()
   setupAutoRefresh()
   const saved = store.get('dsh-git.repo', '')
-  if (saved !== '') {
+  // With a session hint the panel follows the shell's current workspace, so a
+  // repo remembered from an earlier visit must not override it. Picking a repo
+  // by hand still works and is remembered for session-less visits.
+  if (saved !== '' && SESSION_ID === '') {
     state.repo = saved
     $('#repo-input').value = saved
   }
