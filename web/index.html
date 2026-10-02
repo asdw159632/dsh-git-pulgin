@@ -42,7 +42,6 @@
       <label class="inline" title="每 10 秒刷新一次工作区状态">
         <input type="checkbox" id="auto-refresh"> 自动刷新
       </label>
-      <a id="standalone-link" class="link" href="/dsh-git/" target="_blank" rel="noreferrer">新标签页 ↗</a>
     </div>
   </header>
 
@@ -83,14 +82,18 @@
           <label class="inline"><input type="checkbox" id="select-all"> 全选</label>
         </div>
         <div id="changes-list" class="changes"></div>
-        <div class="commitbox">
-          <textarea id="commit-message" rows="3" placeholder="提交信息（第一行作为标题）"></textarea>
-          <div class="row wrap">
-            <label class="inline"><input type="checkbox" id="commit-amend"> amend 上一次提交</label>
-            <label class="inline"><input type="checkbox" id="commit-all"> 包含未暂存改动 (-a)</label>
-            <span class="spacer"></span>
-            <button id="btn-commit" class="btn primary">提交</button>
-          </div>
+      </div>
+
+      <!-- Deliberately outside both panes: committing is not tied to the
+           worktree tab, and while this lived inside it the message box
+           disappeared whenever the history tab was active. -->
+      <div class="commitbox">
+        <textarea id="commit-message" rows="3" placeholder="提交信息（第一行作为标题）"></textarea>
+        <div class="row wrap">
+          <label class="inline"><input type="checkbox" id="commit-amend"> amend 上一次提交</label>
+          <label class="inline"><input type="checkbox" id="commit-all"> 包含未暂存改动 (-a)</label>
+          <span class="spacer"></span>
+          <button id="btn-commit" class="btn primary">提交</button>
         </div>
       </div>
     </section>

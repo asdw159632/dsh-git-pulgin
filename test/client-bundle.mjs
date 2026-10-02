@@ -285,11 +285,6 @@ function findIframe(node) {
 const iframe = findIframe(render(page))
 check('页面内嵌 /dsh-git/', typeof iframe?.props?.src === 'string' && iframe.props.src.startsWith('/dsh-git/'), iframe?.props?.src)
 check('无会话时不带 session 参数', iframe?.props?.src === '/dsh-git/?embed=1', iframe?.props?.src)
-check('内嵌应用带标题栏', (function findTag(node) {
-  if (node === null || typeof node !== 'object') return false
-  if (node.tag === 'a') return true
-  return (node.children ?? []).some(findTag)
-})(render(page)))
 
 // With a session persisted by the shell, the frame must carry it so the host
 // can open the workspace that session belongs to.
@@ -300,26 +295,30 @@ check(
   typeof withSession?.props?.src === 'string' && withSession.props.src.includes('session=session-test-1'),
   withSession?.props?.src,
 )
-const withSessionLink = (function findLink(node) {
-  if (node === null || typeof node !== 'object') return null
-  if (node.tag === 'a') return node
-  for (const child of node.children ?? []) {
-    const hit = findLink(child)
-    if (hit !== null) return hit
-  }
-  return null
-})(render(mainPanel.component({})))
-check(
-  '新标签页链接同样带 session',
-  typeof withSessionLink?.props?.href === 'string' && withSessionLink.props.href.includes('session=session-test-1'),
-  withSessionLink?.props?.href,
-)
+// The frame is a wrapper plus the iframe and nothing else: the tab chip / the
+// sidebar row already names it, the app carries its own header, and a duplicate
+// new-tab link there did nothing useful.
+check('内嵌框架不自带标题栏或新标签页链接', !(function hasAnchor(node) {
+  if (node === null || typeof node !== 'object') return false
+  if (node.tag === 'a') return true
+  return (node.children ?? []).some(hasAnchor)
+})(render(page)))
 
 // The live host must actually serve that app.
 const appResponse = await fetch(`${base}/dsh-git/`)
 check('宿主提供应用页面', appResponse.status === 200, `HTTP ${appResponse.status}`)
 const appHtml = await appResponse.text()
 check('页面引用 app.js', appHtml.includes('/dsh-git/app.js'))
+check('页面带提交信息输入框', appHtml.includes('id="commit-message"') && appHtml.includes('id="btn-commit"'))
+// It must sit OUTSIDE both tab panes, or it disappears on the history tab.
+const commitBoxIndex = appHtml.indexOf('class="commitbox"')
+const changesPaneEnd = appHtml.indexOf('id="changes-list"')
+check(
+  '提交框在两个 tab 面板之外（切到提交历史也可见）',
+  commitBoxIndex > changesPaneEnd && changesPaneEnd > 0,
+  `commitbox@${commitBoxIndex} changes-list@${changesPaneEnd}`,
+)
+check('页面不再有内嵌用的新标签页链接', !appHtml.includes('standalone-link'))
 
 console.log(`\n结果：${passed} 通过，${failed} 失败`)
 process.exitCode = failed === 0 ? 0 : 1

@@ -104,14 +104,14 @@ window.__ModuleLoader__.load({
 
     /**
      * The Git app, framed for one seat: a same-origin iframe over the host's
-     * app, plus its title/open-in-tab bar. The wrapper keeps a real height even
-     * where `height: 100%` cannot resolve.
+     * app. The wrapper keeps a real height even where `height: 100%` cannot
+     * resolve.
      *
      * The current session id rides along as `?session=`, so the embedded app
      * opens the workspace that session belongs to. The shell rewrites the
      * selection on every navigation, so it is re-read on a timer and the iframe
      * is re-keyed only when the value actually changes.
-     * @param props - `header` (default true) draws the title bar, `minHeight`.
+     * @param props - `minHeight` (defaults to a panel-sized floor).
      */
     function GitAppFrame(props) {
       const [sessionId, setSessionId] = React.useState(readCurrentSession)
@@ -125,39 +125,9 @@ window.__ModuleLoader__.load({
 
       const query = sessionId === '' ? '' : `?session=${encodeURIComponent(sessionId)}`
       const embedUrl = `${APP_URL}${query}${query === '' ? '?' : '&'}embed=1`
-      const tabUrl = `${APP_URL}${query}`
 
-      const children = []
-      if (props?.header !== false) {
-        children.push(
-          h(
-            'div',
-            {
-              style: {
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '8px',
-                padding: '6px 10px',
-                fontSize: '12px',
-                opacity: 0.72,
-                borderBottom: '1px solid color-mix(in srgb, currentColor 14%, transparent)',
-              },
-            },
-            h('span', null, 'Git 历史与操作'),
-            h('a', { href: tabUrl, target: '_blank', rel: 'noreferrer', style: { color: 'inherit' } }, '在新标签页打开 ↗'),
-          ),
-        )
-      }
-      children.push(
-        h('iframe', {
-          key: embedUrl,
-          src: embedUrl,
-          title: 'Git',
-          style: { flex: '1 1 auto', width: '100%', minHeight: 0, border: '0', background: 'transparent' },
-        }),
-      )
-
+      // No title bar of our own: the tab chip (right sidebar) or the sidebar
+      // row (main panel) already names this, and the app has its own header.
       return h(
         'div',
         {
@@ -172,11 +142,16 @@ window.__ModuleLoader__.load({
             background: 'var(--dsh-color-bg, transparent)',
           },
         },
-        ...children,
+        h('iframe', {
+          key: embedUrl,
+          src: embedUrl,
+          title: 'Git',
+          style: { flex: '1 1 auto', width: '100%', minHeight: 0, border: '0', background: 'transparent' },
+        }),
       )
     }
 
-    /** The main-column Git page: the app frame with its title bar. */
+    /** The main-column Git page: the app frame at panel height. */
     function GitPage() {
       return h(GitAppFrame, {})
     }
@@ -316,9 +291,8 @@ window.__ModuleLoader__.load({
                 { name: 'sidebar.right.pane.tab', key: SUMMARY_ID, locale: NS },
                 // The same app the left sidebar embeds, so this window carries
                 // the full toolbar, tabs, commit graph and operations instead of
-                // a hand-built subset of them. No title bar: the tab chip already
-                // names it, and a docked pane is narrow.
-                (props) => h(GitAppFrame, { ...props, header: false, minHeight: 0 }),
+                // a hand-built subset of them.
+                (props) => h(GitAppFrame, { ...props, minHeight: 0 }),
               ),
             ),
           'dsh-git-plugin: summary tab body',
