@@ -236,7 +236,7 @@ check(
     && entry.services.includes('sidebarRightTabs') && entry.services.includes('sidebarRight')),
 )
 const summaryBody = registrations.find(entry => entry.kind === 'register' && entry.options.name === 'sidebar.right.pane.tab')
-check('注册简要窗口 body', summaryBody !== undefined)
+check('注册右栏窗口 body', summaryBody !== undefined)
 check(
   'body key 与 tab 类型 id 一致',
   summaryBody?.options.key === tabType?.definition?.id,
@@ -248,7 +248,22 @@ check('注册左栏页脚入口', footerAction !== undefined)
 // stub has no reconciler, so unwrap by hand until a DOM tag appears.
 const render = (node) => (typeof node?.tag === 'function' ? render(node.tag(node.props)) : node)
 check('页脚入口渲染出按钮', render(footerAction?.component({ wide: true, copy: (key) => key }))?.tag === 'button')
-check('简要窗口渲染出内容', render(summaryBody?.component({ copy: (key) => key }))?.tag === 'div')
+check('右栏窗口渲染出容器', render(summaryBody?.component({}))?.tag === 'div')
+// The window must embed the FULL app, not a hand-built subset of it.
+const summaryFrame = (function find(node) {
+  if (node === null || typeof node !== 'object') return null
+  if (node.tag === 'iframe') return node
+  for (const child of node.children ?? []) {
+    const hit = find(child)
+    if (hit !== null) return hit
+  }
+  return null
+})(render(summaryBody?.component({})))
+check(
+  '右栏窗口内嵌完整应用',
+  typeof summaryFrame?.props?.src === 'string' && summaryFrame.props.src.startsWith('/dsh-git/'),
+  summaryFrame?.props?.src,
+)
 
 // Render both components: the icon must be an element, the page must embed the app.
 const icon = panelList.component({ size: 20 })
@@ -267,14 +282,19 @@ function findIframe(node) {
   return null
 }
 
-const iframe = findIframe(page)
+const iframe = findIframe(render(page))
 check('页面内嵌 /dsh-git/', typeof iframe?.props?.src === 'string' && iframe.props.src.startsWith('/dsh-git/'), iframe?.props?.src)
 check('无会话时不带 session 参数', iframe?.props?.src === '/dsh-git/?embed=1', iframe?.props?.src)
+check('内嵌应用带标题栏', (function findTag(node) {
+  if (node === null || typeof node !== 'object') return false
+  if (node.tag === 'a') return true
+  return (node.children ?? []).some(findTag)
+})(render(page)))
 
 // With a session persisted by the shell, the frame must carry it so the host
 // can open the workspace that session belongs to.
 globalThis.window.localStorage.setItem('dsh.sessions.current', JSON.stringify({ sessionId: 'session-test-1' }))
-const withSession = findIframe(mainPanel.component({}))
+const withSession = findIframe(render(mainPanel.component({})))
 check(
   '带会话时 iframe 传 session 参数',
   typeof withSession?.props?.src === 'string' && withSession.props.src.includes('session=session-test-1'),
@@ -288,7 +308,7 @@ const withSessionLink = (function findLink(node) {
     if (hit !== null) return hit
   }
   return null
-})(mainPanel.component({}))
+})(render(mainPanel.component({})))
 check(
   '新标签页链接同样带 session',
   typeof withSessionLink?.props?.href === 'string' && withSessionLink.props.href.includes('session=session-test-1'),
