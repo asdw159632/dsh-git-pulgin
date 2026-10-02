@@ -174,6 +174,27 @@ const ctx = {
     drain(callback())
     return () => {}
   },
+  // The right-sidebar seats are gated behind ctx.inject([...]); resolving the
+  // services immediately is what makes those registrations observable here.
+  inject: (services, callback) => {
+    registrations.push({ kind: 'injected', services })
+    callback(ctx)
+  },
+  sidebarRightTabs: {
+    register: (definition) => {
+      registrations.push({ kind: 'tabType', definition })
+      return () => {}
+    },
+  },
+  sidebarRight: {
+    openTab: (kind) => {
+      registrations.push({ kind: 'openTab', kind })
+      return 'tab-1'
+    },
+  },
+  layout: {
+    selectPanel: (id) => { registrations.push({ kind: 'selectPanel', id }) },
+  },
   slots: {
     inject: (slot, callback) => { registrations.push({ kind: 'inject', slot }); drain(callback()) },
     register: (options, component) => {
@@ -192,6 +213,31 @@ check('两处 id 一致', panelList?.options.id === mainPanel?.options.key, `${p
 check('panellist 有 label', typeof panelList?.options.label === 'function')
 check('注册了 locale 字典', registrations.some(entry => entry.kind === 'locale'))
 check('等待 main 槽声明', registrations.some(entry => entry.kind === 'inject' && entry.slot === 'main'))
+
+// The brief window in the right sidebar: a page tab type, the body seat that
+// type renders into, and the left sidebar footer action that opens it.
+const tabType = registrations.find(entry => entry.kind === 'tabType')
+check('注册右侧边栏 tab 类型', tabType?.definition?.kind === 'git-summary', JSON.stringify(tabType?.definition))
+check('tab 类型带 id 与 title', typeof tabType?.definition?.id === 'string' && typeof tabType?.definition?.title === 'function')
+check(
+  '只向宿主请求右侧边栏服务',
+  registrations.some(entry => entry.kind === 'injected' && Array.isArray(entry.services)
+    && entry.services.includes('sidebarRightTabs') && entry.services.includes('sidebarRight')),
+)
+const summaryBody = registrations.find(entry => entry.kind === 'register' && entry.options.name === 'sidebar.right.pane.tab')
+check('注册简要窗口 body', summaryBody !== undefined)
+check(
+  'body key 与 tab 类型 id 一致',
+  summaryBody?.options.key === tabType?.definition?.id,
+  `${summaryBody?.options.key} vs ${tabType?.definition?.id}`,
+)
+const footerAction = registrations.find(entry => entry.kind === 'register' && entry.options.name === 'sidebar.footer.action')
+check('注册左栏页脚入口', footerAction !== undefined)
+// A registered seat may be a wrapper element around the real component; the
+// stub has no reconciler, so unwrap by hand until a DOM tag appears.
+const render = (node) => (typeof node?.tag === 'function' ? render(node.tag(node.props)) : node)
+check('页脚入口渲染出按钮', render(footerAction?.component({ wide: true, copy: (key) => key }))?.tag === 'button')
+check('简要窗口渲染出内容', render(summaryBody?.component({ copy: (key) => key }))?.tag === 'div')
 
 // Render both components: the icon must be an element, the page must embed the app.
 const icon = panelList.component({ size: 20 })

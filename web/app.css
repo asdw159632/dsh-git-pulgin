@@ -3,6 +3,14 @@
    shell's --dsw-alias-* tokens onto :root so the panel matches the active
    theme, and these defaults are the standalone fallback. */
 
+/* The UI shows and hides panels with the `hidden` ATTRIBUTE. The UA stylesheet
+   maps that to `display: none`, but an author `display` rule always outranks the
+   UA sheet — so without this line every element below that also sets `display`
+   (`.pane`, `.backdrop`, `.busy`, `.banner`, …) stays on screen no matter what
+   the code sets `hidden` to. That is exactly how the busy overlay could spin
+   forever over the whole panel. */
+[hidden] { display: none !important; }
+
 :root {
   color-scheme: dark;
   --bg: #0e1116;

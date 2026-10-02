@@ -19,6 +19,7 @@ DSH（DeepSeek Harness）插件：**可视化 Git 提交历史**，并在 GUI �
 | 冲突与进行中状态 | 自动识别 merging / rebasing / cherry-picking / reverting，列出冲突文件，一键「全部标记为已解决（暂存）」，一键中止操作 |
 | 其它 | 未跟踪文件的合成「new file」差异视图、大差异截断保护、仓库本地提交身份就地设置、每 10 秒可选自动状态刷新、`/api/selfcheck` 自检 |
 | 跟随当前工作区 | 内嵌页面按宿主当前会话（`localStorage["dsh.sessions.current"]`）自动打开该会话所属工作区的仓库；会话切换时自动跟随，也可在工具栏手选其它仓库 |
+| 右栏简要窗口 | 右侧边栏的一个独立 tab（kind `git-summary`）：当前仓库、分支、待推送/待拉取、冲突/已暂存/未暂存/未跟踪计数、最近提交；**只读**，另带「刷新」与「完整面板」。打开入口是左侧栏页脚的 `Git 简要` 按钮 |
 
 ## 安装
 
@@ -131,6 +132,21 @@ Start-Process "$b/dsh-git/"
 任何一环缺失（旧宿主不认 `session`、localStorage 为空、会话找不到工作区）都只是退回「列表第一个仓库」，不会报错。带 `session` 时，上一次手选的仓库**不会**覆盖会话工作区 —— 想固定用别的仓库，就在工具栏选（该选择对不带 `session` 的访问仍然生效）。
 
 本仓库自带的 `install.patch.yml` 用的就是 `repo: ''` 的自动探测形态，不改任何路径即可开箱使用。另注意 `roots` 非空时对**所有**请求（读与写）生效，只能指向白名单内的仓库。
+
+### 右侧边栏的简要窗口
+
+DSH 的右侧边栏是一个 **tab dock**，不是一个普通 slot：`rightbar` 那个座位由 `dsh-client-ui-sidebar-right` 自己占着，别的包不能直接往里塞内容。给该栏加内容的公开路径是**两步注册**，本插件照做：
+
+1. **声明 tab 类型** —— `ctx.sidebarRightTabs.register({ id, kind, title })`，返回 disposer。`id` 是这套实现的身份（这里是 `dsh-git-plugin/summary`，同一 `id` 重复注册会抛错），`kind` 是打开时用的名字（`git-summary`）。
+2. **注册该类型的 body** —— `ctx.slots.register({ name: 'sidebar.right.pane.tab', key: <id> }, Body)`，body 组件从框架注入的 `useTabInfo()` 拿到 `{ sidebar, panel, tab }`。
+
+打开动作是 `ctx.sidebarRight.openTab('git-summary')`，本插件把它挂在**左侧栏页脚的 `sidebar.footer.action`** 上（`wide` 时显示文字，收起时只显示图标）。这两个服务都由右侧边栏包提供，所以整块注册包在 `ctx.inject(['sidebarRightTabs', 'sidebarRight'], ...)` 里 —— 没有右侧边栏的宿主会整块跳过，不影响主要的 Git 面板。
+
+窗口内容只读：每 10 秒（外加手动「刷新」）取一次 `/api/repos?session=` → `/api/status` + `/api/log?limit=1`，渲染仓库名、分支、待推送/待拉取、冲突/已暂存/未暂存/未跟踪计数与最近提交；「完整面板」按钮调 `ctx.layout.selectPanel('git')` 切回左栏的完整界面。写操作全部留在完整面板里。
+
+### 一处 CSS 陷阱（已修）
+
+`web/index.html` 用 **`hidden` 属性**显隐面板，而 UA 样式表把 `[hidden]` 实现为 `display: none` —— 但**作者样式表里的任何 `display` 规则都会盖过 UA 规则**。`web/app.css` 里 `.pane`、`.backdrop`、`.busy` 都带 `display`，于是 `hidden` 完全失效：那个铺满整个面板的 `#busy` 一直亮着、转圈、显示初始文案 `处理中…`（`setBusy` 的默认文案），`#modal-backdrop` 和变更面板也一直显示。修法是在样式表最前面加一条 `[hidden] { display: none !important; }`。
 
 ### git 可执行文件探测顺序
 
