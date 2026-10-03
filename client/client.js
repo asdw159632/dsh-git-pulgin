@@ -155,66 +155,6 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * The left sidebar's footer action that opens the right-sidebar window.
-     * @param props - the sidebar seat share (`wide`), plus `copy` and `onOpen`.
-     */
-    function SummaryFooterButton(props) {
-      const copy = typeof props?.copy === 'function' ? props.copy : (key) => key
-      const wide = props?.wide !== false
-      return h(
-        'button',
-        {
-          type: 'button',
-          title: copy('summaryHint'),
-          onClick: () => {
-            try {
-              props?.onOpen?.()
-            } catch (error) {
-              console.warn('[dsh-git-plugin] 打开简要窗口失败', error)
-            }
-          },
-          style: {
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: wide ? 'flex-start' : 'center',
-            gap: '8px',
-            width: '100%',
-            height: '32px',
-            padding: wide ? '0 8px' : '0',
-            margin: '2px 0',
-            background: 'transparent',
-            border: 'none',
-            borderRadius: '6px',
-            color: 'inherit',
-            font: 'inherit',
-            fontSize: '12px',
-            cursor: 'pointer',
-            textAlign: 'left',
-          },
-        },
-        h(
-          'svg',
-          {
-            width: 16,
-            height: 16,
-            viewBox: '0 0 24 24',
-            fill: 'none',
-            stroke: 'currentColor',
-            strokeWidth: 1.7,
-            strokeLinecap: 'round',
-            strokeLinejoin: 'round',
-            'aria-hidden': 'true',
-            style: { display: 'block', flex: 'none' },
-          },
-          h('path', { d: 'M4 6h16' }),
-          h('path', { d: 'M4 12h10' }),
-          h('path', { d: 'M4 18h13' }),
-        ),
-        wide ? h('span', { style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, copy('summary')) : null,
-      )
-    }
-
-    /**
      * Register the sidebar row and the panel it opens.
      * @param ctx - the browser plugin context (`inject` guarantees `slots`).
      */
@@ -255,11 +195,11 @@ window.__ModuleLoader__.load({
         ),
       )
 
-      // The brief window lives in the RIGHT sidebar, which is a tab dock rather
+      // The Git window lives in the RIGHT sidebar, which is a tab dock rather
       // than a plain slot: a package owns a page tab TYPE plus the body seat that
-      // type renders into, and something opens it. Both services come from the
-      // right-sidebar package, so a host without one simply skips this block.
-      ctx.inject(['sidebarRightTabs', 'sidebarRight'], (sidebarCtx) => {
+      // type renders into. The type registers here; the column's own guide page
+      // is what offers it, so no launcher of our own is needed anywhere.
+      ctx.inject(['sidebarRightTabs'], (sidebarCtx) => {
         sidebarCtx.effect(
           () =>
             sidebarCtx.sidebarRightTabs.register({
@@ -294,18 +234,6 @@ window.__ModuleLoader__.load({
               ),
             ),
           'dsh-git-plugin: summary tab body',
-        )
-
-        // The left sidebar's footer action opens it too — the guide entry above
-        // is the discoverable path, this is the shortcut.
-        sidebarCtx.slots.inject('sidebar.footer.action', () =>
-          sidebarCtx.slots.register({ name: 'sidebar.footer.action', id: 'git-summary', order: 60, locale: NS }, (props) =>
-            h(SummaryFooterButton, {
-              ...props,
-              copy: t,
-              onOpen: () => sidebarCtx.sidebarRight.openTab(SUMMARY_KIND),
-            }),
-          ),
         )
       })
     }

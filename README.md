@@ -19,7 +19,7 @@ DSH（DeepSeek Harness）插件：**可视化 Git 提交历史**，并在 GUI �
 | 冲突与进行中状态 | 自动识别 merging / rebasing / cherry-picking / reverting，列出冲突文件，一键「全部标记为已解决（暂存）」，一键中止操作 |
 | 其它 | 未跟踪文件的合成「new file」差异视图、大差异截断保护、仓库本地提交身份就地设置、每 10 秒可选自动状态刷新、`/api/selfcheck` 自检 |
 | 跟随当前工作区 | 内嵌页面按宿主当前会话（`localStorage["dsh.sessions.current"]`）自动打开该会话所属工作区的仓库；会话切换时自动跟随，也可在工具栏手选其它仓库 |
-| 右侧边栏窗口 | 右侧边栏的一个独立 tab（kind `git-summary`），内嵌**同一个应用** —— 仓库/分支选择、抓取/拉取/推送/合并/新建分支、提交历史泳道图、工作区变更、提交框，**但不含 diff 列**（右栏窄，且和左侧完整面板重复；要看 diff 用左侧栏的 Git 面板，窗口顶部有提示）。入口有两个：右栏 guide 页里的 `Git` 卡片，以及左侧栏页脚的 `Git` 按钮 |
+| 右侧边栏窗口 | 右侧边栏的一个独立 tab（kind `git-summary`），内嵌**同一个应用** —— 仓库/分支选择、抓取/拉取/推送/合并/新建分支、提交历史泳道图、工作区变更、提交框，**但不含 diff 列**（右栏窄，且和左侧完整面板重复；要看 diff 用左侧栏的 Git 面板，窗口顶部有提示）。入口只有一个：右栏 guide 页里的 `Git` 卡片（用栏顶的 add 控件打开 guide） |
 
 ## 安装
 
@@ -142,7 +142,7 @@ DSH 的右侧边栏是一个 **tab dock**，不是一个普通 slot：`rightbar`
 
 > ⚠️ **只有第 1、2 步，右栏里是看不到这个 tab 的。** 右栏平时显示的是**guide 页**（那一排「工作区文件 / 新建终端 / 浏览器」卡片），页类型必须在 `guide: [{ id, order, title, description, icon }]` 里列一条入口，才会出现在那一排里；否则类型注册成功、也能被 `openTab` 打开，但界面里没有任何入口。`icon` 是可选组件，本插件复用了侧栏那个分支图标。
 
-打开动作是 `ctx.sidebarRight.openTab('git-summary')`；除了 guide 入口，本插件还把它挂在**左侧栏页脚的 `sidebar.footer.action`** 上（`wide` 时显示文字，收起时只显示图标）。这两个服务都由右侧边栏包提供，所以整块注册包在 `ctx.inject(['sidebarRightTabs', 'sidebarRight'], ...)` 里 —— 没有右侧边栏的宿主会整块跳过，不影响主要的 Git 面板；在本机这套 0.2.0-rc.2 桌面宿主里，这两个服务由 profile 的 `dsh-web-app` bundle 通过 `@deepseek-ai/dsh-client-ui-sidebar-right` 提供。
+打开这个 tab 由右栏自己的 guide 页负责（点栏顶的 add 控件出 guide，再点 `Git` 卡片）。本插件**不再自建任何入口** —— 早先在左侧栏页脚挂过一个 `sidebar.footer.action` 按钮，既然 guide 页已经列出该 tab，那个按钮就是重复的，已移除（测试里有一条断言盯着「左栏页脚不得再注册入口」，防止它被加回来）。整个注册块包在 `ctx.inject(['sidebarRightTabs'], ...)` 里 —— 没有右侧边栏的宿主会整块跳过，不影响主要的 Git 面板；在本机这套 0.2.0-rc.2 桌面宿主里，该服务由 profile 的 `dsh-web-app` bundle 通过 `@deepseek-ai/dsh-client-ui-sidebar-right` 提供。
 
 窗口 body **内嵌的是同一个宿主应用**（同一个 `GitAppFrame`，与左栏主面板共用一个组件），所以右栏拿到的是同一套功能：仓库与分支下拉、抓取/拉取/推送/合并/新建分支、提交历史泳道图与 ref 徽章、工作区变更分组、常驻的提交框。之所以不另写一套精简视图：右栏想要的信息和按钮就是主面板的那一套，重复实现既会漂移、也没法共用已经验证过的逻辑。
 

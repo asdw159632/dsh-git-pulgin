@@ -231,9 +231,9 @@ check(
     && typeof tabType?.definition?.guide?.[0]?.description === 'function',
 )
 check(
-  '只向宿主请求右侧边栏服务',
+  '只向宿主请求右侧边栏 tab 注册表',
   registrations.some(entry => entry.kind === 'injected' && Array.isArray(entry.services)
-    && entry.services.includes('sidebarRightTabs') && entry.services.includes('sidebarRight')),
+    && entry.services.includes('sidebarRightTabs')),
 )
 const summaryBody = registrations.find(entry => entry.kind === 'register' && entry.options.name === 'sidebar.right.pane.tab')
 check('注册右栏窗口 body', summaryBody !== undefined)
@@ -243,11 +243,12 @@ check(
   `${summaryBody?.options.key} vs ${tabType?.definition?.id}`,
 )
 const footerAction = registrations.find(entry => entry.kind === 'register' && entry.options.name === 'sidebar.footer.action')
-check('注册左栏页脚入口', footerAction !== undefined)
+// The left footer used to carry a launcher for this window; the right column's
+// own guide page offers it now, so nothing of ours may sit in the sidebar foot.
+check('左栏页脚不再注册入口', footerAction === undefined, JSON.stringify(footerAction?.options))
 // A registered seat may be a wrapper element around the real component; the
 // stub has no reconciler, so unwrap by hand until a DOM tag appears.
 const render = (node) => (typeof node?.tag === 'function' ? render(node.tag(node.props)) : node)
-check('页脚入口渲染出按钮', render(footerAction?.component({ wide: true, copy: (key) => key }))?.tag === 'button')
 check('右栏窗口渲染出容器', render(summaryBody?.component({}))?.tag === 'div')
 // The window must embed the FULL app, not a hand-built subset of it.
 const summaryFrame = (function find(node) {
